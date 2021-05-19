@@ -6,34 +6,6 @@ SQL_SELECT_ALL = 'select rowid, * from klanten'
 DATABASENAME = 'mijnDb.db'
 
 
-def setupApp():
-    # Connect to database (or create it)
-    conn = sqlite3.connect(DATABASENAME)
-
-    # Create a cursor instance
-    curs = conn.cursor()
-
-    # Create table
-    curs.execute('''
-        CREATE TABLE if not exists klanten (
-        VoorNm TEXT, 
-        AchterNm TEXT,
-        Geslacht TEXT
-        )
-    ''')
-
-    # Commit changes
-    conn.commit()
-
-    # Close connection
-    conn.close()
-
-
-setupApp()
-
-
-
-
 # Haal records op uit database
 def query_database(sqlcmd):
     # Connect to database (or create it)
@@ -98,11 +70,27 @@ def exec_insert(sqlcommand, dict):
 
 
 
-def filTree(sqlcmd):
+def fillTree(sqlcmd):
+
+    tree.delete(*tree.get_children())
 
     recs = query_database(sqlcmd)
     for rec in recs:
         tree.insert(parent='', index='end', iid=rec[0], values=(rec[1], rec[2], rec[3]))
+
+    return len(recs)
+
+
+
+def refreshData():
+    ledigEntryBoxen()
+
+    # Record nummer ophalen
+    selected = tree.focus()
+    fillTree()
+    tree.focus(selected)
+    tree.selection_set(selected)
+    selectRec()
 
 
 
@@ -112,8 +100,11 @@ root.geometry('800x800')
 
 columns = ('Voornaam', 'Achternaam', 'Geslacht')
 
+top_frame = tk.Frame(root, bg='yellow')
+top_frame.pack(side=tk.TOP)
+
 tree_frame = tk.Frame(root)
-tree_frame.pack(pady=20)
+tree_frame.pack(pady=40)
 
 # Create tree scrollbar
 tree_scroll = tk.Scrollbar(tree_frame)
@@ -144,7 +135,6 @@ tree.heading('Geslacht', text='Man/Vrouw', anchor='w')
 
 tree.pack()
 
-filTree(SQL_SELECT_ALL)
 
 # Add record entry boxes
 data_frame = tk.LabelFrame(root, text='Record')
@@ -165,6 +155,33 @@ lblGeslacht.grid(row=1, column=0, padx=10, pady=10)
 edtGeslacht = tk.Entry(data_frame)
 edtGeslacht.grid(row=1, column=1, padx=10, pady=10)
 
+
+def goToFirstRec():
+    rowcount = len(tree.get_children())
+    if rowcount > 0:
+        rowIid = tree.get_children()[0]
+        tree.focus(rowIid)
+        tree.selection_set(rowIid)
+        selectRec()
+
+
+btnFirstRow = tk.Button(top_frame, text='First', command=goToFirstRec)
+btnFirstRow.pack(side=tk.LEFT)
+
+
+def goToLastRec():
+    rowcount = len(tree.get_children())
+    if rowcount > 0:
+        rowIid = tree.get_children()[-1]
+        tree.focus(rowIid)
+        tree.selection_set(rowIid)
+        selectRec()
+
+
+btnLastRow = tk.Button(top_frame, text='Last', command=goToLastRec)
+btnLastRow.pack(side=tk.LEFT)
+
+
 def ledigEntryBoxen():
     edtGeslacht.delete(0, tk.END)
     edtLastNm.delete(0, tk.END)
@@ -173,6 +190,7 @@ def ledigEntryBoxen():
 
 btnLedigBoxen = tk.Button(data_frame, text='Ledig', command=ledigEntryBoxen)
 btnLedigBoxen.grid(row=2, column=0, padx=10, pady=10)
+
 
 # Add button toevoegen
 def toevoegenRec():
@@ -196,8 +214,8 @@ def toevoegenRec():
     tree.insert(parent='', index='end', iid=iid, values=(edtFirstNm.get(), edtLastNm.get(), edtGeslacht.get()))
 
 
-btnToevoeg = tk.Button(root, text='Toevoegen', command=toevoegenRec)
-btnToevoeg.pack(pady=20)
+btnToevoeg = tk.Button(top_frame, text='Toevoegen', command=toevoegenRec)
+btnToevoeg.pack(side=tk.LEFT)
 
 
 # Een rec wissen
@@ -214,22 +232,16 @@ def wisGeselecteerde():
         exec_comnd(sqlcmnd, dict)
 
 
-btnWisEen = tk.Button(root, text='Wis eerste geselecteerde', command=wisGeselecteerde)
-btnWisEen.pack(pady=10)
-
-# Meerdere geselcteerde recs wissen
-def wisAlleGeselecteerde():
-    recs = tree.selection()
-    for rec in recs:
-        tree.delete(rec)
-
-
-btnWisGesel = tk.Button(root, text='Wis alle geselecteerde', command=wisAlleGeselecteerde)
-btnWisGesel.pack(pady=10)
+btnWisEen = tk.Button(top_frame, text='Wis eerste geselecteerde', command=wisGeselecteerde)
+btnWisEen.pack(side=tk.LEFT)
 
 
 # Record wijzigen
 def selecteerRec(e):
+    selectRec()
+
+
+def selectRec():
     # Ledig eerst de entryboxen
     ledigEntryBoxen()
 
@@ -250,10 +262,10 @@ tree.bind('<ButtonRelease-1>', selecteerRec)
 
 def refresData():
     tree.delete(*tree.children())
-    filTree(SQL_SELECT_ALL)
+    fillTree(SQL_SELECT_ALL)
 
-btnRefresh = tk.Button(root, text='Refresh data', command=refresData)
-btnRefresh.pack(pady=10)
+btnRefresh = tk.Button(top_frame, text='Refresh data', command=refresData)
+btnRefresh.pack(side=tk.LEFT)
 
 
 def updateRec():
@@ -277,8 +289,36 @@ def updateRec():
     exec_comnd(sqlcmnd, dict)
 
 
-btnUpdateRec = tk.Button(root, text='Update rec.', command=updateRec)
-btnUpdateRec.pack(pady=10)
+btnUpdateRec = tk.Button(top_frame, text='Update rec.', command=updateRec)
+btnUpdateRec.pack(side=tk.LEFT)
+
+def setupApp():
+    # Connect to database (or create it)
+    conn = sqlite3.connect(DATABASENAME)
+
+    # Create a cursor instance
+    curs = conn.cursor()
+
+    # Create table
+    curs.execute('''
+        CREATE TABLE if not exists klanten (
+        VoorNm TEXT, 
+        AchterNm TEXT,
+        Geslacht TEXT
+        )
+    ''')
+
+    # Commit changes
+    conn.commit()
+
+    # Close connection
+    conn.close()
+
+    reccount = fillTree(SQL_SELECT_ALL)
+    goToFirstRec()
+
+setupApp()
+
 
 
 root.mainloop()
