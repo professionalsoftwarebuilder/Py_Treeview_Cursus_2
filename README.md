@@ -14,7 +14,7 @@ Is Altered TreeTabular-org where functionallity to execute crud operations in pu
 All is very simplistic since the object of this project is to teach oo programming.    
 The DAL is coded in sqlQuery.py, and is somewhat inspired by TSqlQuery from the free pascal dbSql package.  
 
-**sqlQuery.py**
+**sqlQuery.py**  
 The DAL has a dataBase class and a sqlQuery Class.  
 The dataBase Class takes a path to de sqlite file to init.  
 The sqlQuery takes a dataBase object to init.  
