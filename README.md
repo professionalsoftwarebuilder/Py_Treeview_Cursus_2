@@ -18,7 +18,7 @@ The DAL has a dataBase class and a sqlQuery Class.
 The dataBase Class takes a path to de sqlite file to init.  
 The sqlQuery takes a dataBase object to init.  
 The sqlQuery also must be supplied a select statement in whitch you must name the fields you want to use.  
-The Other Crud statments are created by de sqlQuery class.
+The Other Crud statments are created by de sqlQuery class.  
 Also te primary key must be the fist field in the select statement (only to comply with the Treeview).  
 
 The sqlQuery has a (symplistic) "homemade" event system based on the "Observer pattern", hence the Observable and Observer classes.  
