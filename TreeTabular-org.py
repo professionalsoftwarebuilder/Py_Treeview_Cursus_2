@@ -1,16 +1,9 @@
 import tkinter as tk
 from tkinter import ttk
-import sqlQuery as sql
-import components
 import sqlite3
 
-SQL_SELECT_ALL = 'select rowid, VoorNm, AchterNm, Geslacht from klanten'
+SQL_SELECT_ALL = 'select rowid, * from klanten'
 DATABASENAME = 'mijnDb.db'
-
-theDataBase = sql.DataBase(DATABASENAME)
-
-sqlQuery = sql.SqlQuery(theDataBase)
-sqlQuery.SelectSql = SQL_SELECT_ALL
 
 
 # Haal records op uit database
@@ -76,14 +69,17 @@ def exec_insert(sqlcommand, dict):
     return iid
 
 
-def fillTree():
+
+def fillTree(sqlcmd):
 
     tree.delete(*tree.get_children())
 
-    for rec in sqlQuery.theRecords:
-        tree.insert(parent='', index='end', iid=rec[0], values=(rec[0], rec[1], rec[2], rec[3]))
+    recs = query_database(sqlcmd)
+    for rec in recs:
+        tree.insert(parent='', index='end', iid=rec[0], values=(rec[1], rec[2], rec[3]))
 
-    return sqlQuery.NrOfRecords
+    return len(recs)
+
 
 
 def refreshData():
@@ -91,7 +87,6 @@ def refreshData():
 
     # Record nummer ophalen
     selected = tree.focus()
-    sqlQuery.listRecs()
     fillTree()
     tree.focus(selected)
     tree.selection_set(selected)
@@ -103,7 +98,7 @@ root = tk.Tk()
 root.title('Treeview demo')
 root.geometry('800x800')
 
-columns = ('Id', 'Voornaam', 'Achternaam', 'Geslacht')
+columns = ('Voornaam', 'Achternaam', 'Geslacht')
 
 top_frame = tk.Frame(root, bg='yellow')
 top_frame.pack(side=tk.TOP)
@@ -121,13 +116,11 @@ tree = ttk.Treeview(tree_frame, columns=columns, show='headings', yscrollcommand
 tree_scroll.config(command=tree.yview)
 
 # Kolom formatten
-tree.column('Id', width=35, anchor='e')
 tree.column('Voornaam', width=120, anchor='w')
 tree.column('Achternaam', width=130, anchor='w')
 tree.column('Geslacht', width=60, anchor='w')
 
 # Header formatten
-tree.heading('Id', text='Id', anchor='w')
 tree.heading('Voornaam', text='Voornamen', anchor='w')
 tree.heading('Achternaam', text='Achternamen', anchor='w')
 tree.heading('Geslacht', text='Man/Vrouw', anchor='w')
@@ -195,33 +188,33 @@ def ledigEntryBoxen():
     edtFirstNm.delete(0, 'end')
 
 
-btnLedigBoxen = tk.Button(data_frame, text='Empty', command=ledigEntryBoxen)
+btnLedigBoxen = tk.Button(data_frame, text='Ledig', command=ledigEntryBoxen)
 btnLedigBoxen.grid(row=2, column=0, padx=10, pady=10)
 
 
 # Add button toevoegen
 def toevoegenRec():
 
-    # Record aan database toevoegen
-    # sqlcmnd = '''insert into klanten
-    #    (VoorNm,
-    #    AchterNm,
-    #    Geslacht)
-    #    Values
-    #    (:voor,
-    #    :achter,
-    #    :geslacht)
-    #    '''
-    dict = {'VoorNm': edtFirstNm.get(),
-            'AchterNm': edtLastNm.get(),
-            'Geslacht': edtGeslacht.get()}
+    # Record ook aan database toevoegen
+    sqlcmnd = '''insert into klanten 
+       (VoorNm,
+       AchterNm,
+       Geslacht) 
+       Values
+       (:voor,
+       :achter,
+       :geslacht)
+       '''
+    dict = {'voor': edtFirstNm.get(),
+            'achter': edtLastNm.get(),
+            'geslacht': edtGeslacht.get()}
 
-    iid = sqlQuery.insertRec(dict)
+    iid = exec_insert(sqlcmnd, dict)
 
-    tree.insert(parent='', index='end', iid=iid, values=(iid, edtFirstNm.get(), edtLastNm.get(), edtGeslacht.get()))
+    tree.insert(parent='', index='end', iid=iid, values=(edtFirstNm.get(), edtLastNm.get(), edtGeslacht.get()))
 
 
-btnToevoeg = tk.Button(top_frame, text='Add', command=toevoegenRec)
+btnToevoeg = tk.Button(top_frame, text='Toevoegen', command=toevoegenRec)
 btnToevoeg.pack(side=tk.LEFT)
 
 
@@ -232,11 +225,14 @@ def wisGeselecteerde():
         rec = tree.selection()[0]
         tree.delete(rec)
 
+
         # Record ook in database deleten
-        sqlQuery.delRec(rec)
+        sqlcmnd = 'delete from klanten where rowid = :id'
+        dict = {'id': rec}
+        exec_comnd(sqlcmnd, dict)
 
 
-btnWisEen = tk.Button(top_frame, text='Delete', command=wisGeselecteerde)
+btnWisEen = tk.Button(top_frame, text='Wis eerste geselecteerde', command=wisGeselecteerde)
 btnWisEen.pack(side=tk.LEFT)
 
 
@@ -251,22 +247,24 @@ def selectRec():
 
     # Record nummer ophalen
     selected = tree.focus()
-    # Let op: CurrentRecId is anders dan CurrentRecNr
-    sqlQuery.CurrentRecId = int(selected)
     # Record waarden ophalen
-
     values = tree.item(selected, 'values')
 
-    edtGeslacht.insert(0, sqlQuery.FieldObjects[3].FieldValue)
-    edtLastNm.insert(0, sqlQuery.FieldObjects[2].FieldValue)
-    edtFirstNm.insert(0, sqlQuery.FieldObjects[1].FieldValue)
+    # Editboxen vullen met values
+    edtGeslacht.insert(0, values[2])
+    edtLastNm.insert(0, values[1])
+    edtFirstNm.insert(0, values[0])
 
 
 # Treeview en Entryboxen binden
 # Hieronder wordt het loslaten van de rechtermuisknop   verbonden met functie selecteerRec
 tree.bind('<ButtonRelease-1>', selecteerRec)
 
-btnRefresh = tk.Button(top_frame, text='Refresh', command=refreshData)
+def refresData():
+    tree.delete(*tree.children())
+    fillTree(SQL_SELECT_ALL)
+
+btnRefresh = tk.Button(top_frame, text='Refresh data', command=refresData)
 btnRefresh.pack(side=tk.LEFT)
 
 
@@ -274,27 +272,25 @@ def updateRec():
     # Record nummer ophalen
     selected = tree.focus()
     # Record opslaan
-    values = tree.item(selected, text='', values=(selected, edtFirstNm.get(), edtLastNm.get(), edtGeslacht.get()))
+    values = tree.item(selected, text='', values=(edtFirstNm.get(), edtLastNm.get(), edtGeslacht.get()))
+    #vals = tree.item(selected, 'values')
 
-    dict = {'VoorNm': edtFirstNm.get(),
-            'AchterNm': edtLastNm.get(),
-            'Geslacht': edtGeslacht.get(),
-            'rowid': selected}
+    # Record in database wijzigen
+    sqlcmnd = '''Update Klanten set
+    VoorNm = :voor,
+    AchterNm = :achter,
+    Geslacht = :geslacht 
+    Where rowid = :id 
+    '''
+    dict = {'voor': edtFirstNm.get(),
+            'achter': edtLastNm.get(),
+            'geslacht': edtGeslacht.get(),
+            'id': selected}
+    exec_comnd(sqlcmnd, dict)
 
-    sqlQuery.updateRec(dict)
 
-
-btnUpdateRec = tk.Button(top_frame, text='Update', command=updateRec)
+btnUpdateRec = tk.Button(top_frame, text='Update rec.', command=updateRec)
 btnUpdateRec.pack(side=tk.LEFT)
-
-stBrMessages = components.StatusBar(root)
-
-
-def setStatusBarText(aText):
-    stBrMessages.settext(aText)
-
-on_Message = sql.Observer(sqlQuery.on_Message, setStatusBarText)
-
 
 def setupApp():
     # Connect to database (or create it)
@@ -318,7 +314,7 @@ def setupApp():
     # Close connection
     conn.close()
 
-    reccount = fillTree()
+    reccount = fillTree(SQL_SELECT_ALL)
     goToFirstRec()
 
 setupApp()
