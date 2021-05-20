@@ -1,5 +1,5 @@
 # Py_Treeview_Cursus_2
-treeview - sqlite3 app cursus 14 mei 2021
+treeview - sqlite3 app cursus 14 - 21 mei 2021
 
 **TreeTabular-org.py:**  
 Basic (one module) python program using Tkinter treeview populated by sqlite3.  
