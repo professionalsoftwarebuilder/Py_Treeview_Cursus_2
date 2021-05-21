@@ -29,6 +29,7 @@ class TheBase:
     Fault = False
     on_Message = Observable()
 
+    # Geeft boodschap door uit child class
     def do_message(self, amsg=''):
         if not (amsg == ''):
             if self.Message == '':
@@ -39,10 +40,12 @@ class TheBase:
 
         print(self.Message)
         try:
+            # Trigger het on_Message event
             self.on_Message.notify_observers(self.Message)
         except:
             print("An exception occurred")
 
+    # Wordt aangeroepen als er iets fout gaat in child class
     def do_fault(self, afault=True, amsg=''):
         self.Fault = afault
         if not (amsg == ''):
@@ -77,10 +80,24 @@ class DataBase(TheBase):
     Conn = None
     Crs = None
 
-    def __init__(self, dbName):
+    def __init__(self, dbName, initcode = ''):
         if not(dbName == ''):
             self.DataBaseNm = dbName
-            self.do_connect()
+            if initcode == '':
+                self.do_connect()
+            else:
+                self.do_init(initcode)
+
+    def do_init(self, initcode):
+        self.do_connect()
+        try:
+            self.Crs.execute(initcode)
+            self.Conn.commit()
+        except:
+            self.do_message('Something went wrong initializing the database')
+        finally:
+            self.Conn.close()
+
 
     def do_connect(self):
         if self.DataBaseNm == '':
