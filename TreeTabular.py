@@ -166,12 +166,12 @@ data_frame.pack(fill='x', expand='yes', padx=20)
 
 lblFirstNm = tk.Label(data_frame, text='Voornaam:')
 lblFirstNm.grid(row=0, column=0, padx=10, pady=10)
-edtFirstNm = tk.Entry(data_frame)
+edtFirstNm = cmp.dbEdit(sqlQuery, 'VoorNm', data_frame)
 edtFirstNm.grid(row=0, column=1, padx=10, pady=10)
 
 lblLastNm = tk.Label(data_frame, text='Achternaam:')
 lblLastNm.grid(row=0, column=2, padx=10, pady=10)
-edtLastNm = tk.Entry(data_frame)
+edtLastNm = cmp.dbEdit(sqlQuery, 'AchterNm', data_frame)
 edtLastNm.grid(row=0, column=3, padx=10, pady=10)
 
 lblGeslacht = tk.Label(data_frame, text='Geslacht:')
@@ -181,7 +181,11 @@ edtGeslacht.grid(row=1, column=1, padx=10, pady=10)
 
 
 def goToFirstRec():
-    sqlQuery.goToFirstRec()
+
+    recindex = sqlQuery.goToFirstRec()
+    recid = sqlQuery.recIndexToRecId(recindex)
+    tree.focus(recid)
+    tree.selection_set(recid)
 
 
 btnFirstRow = tk.Button(top_frame, text='First', command=goToFirstRec)
@@ -219,6 +223,12 @@ def toevoegenRec():
     #    :achter,
     #    :geslacht)
     #    '''
+    sqlQuery.setToInsert()
+    btnToevoeg.configure(text='ConFirm')
+    btnToevoeg.configure(command=conFirm)
+
+def conFirm():
+
     dict = {'VoorNm': edtFirstNm.get(),
             'AchterNm': edtLastNm.get(),
             'Geslacht': edtGeslacht.get()}
@@ -226,6 +236,9 @@ def toevoegenRec():
     iid = sqlQuery.insertRec(dict)
 
     tree.insert(parent='', index='end', iid=iid, values=(iid, edtFirstNm.get(), edtLastNm.get(), edtGeslacht.get()))
+
+    btnToevoeg.configure(text='Add')
+    btnToevoeg.configure(command=toevoegenRec)
 
 
 btnToevoeg = tk.Button(top_frame, text='Add', command=toevoegenRec)
@@ -247,28 +260,16 @@ btnWisEen = tk.Button(top_frame, text='Delete', command=wisGeselecteerde)
 btnWisEen.pack(side=tk.LEFT)
 
 
-
-
 # Record wijzigen
 def selecteerRec(e):
     selectRec()
 
 
 def selectRec():
-    # Ledig eerst de entryboxen
-    ledigEntryBoxen()
-
-    # Record nummer ophalen
+    # Record _id ophalen
     selected = tree.focus()
     # Let op: CurrentRecId is anders dan CurrentRecNr
     sqlQuery.CurrentRecId = int(selected)
-    # Record waarden ophalen
-
-    values = tree.item(selected, 'values')
-
-    #edtGeslacht.insert(0, sqlQuery.FieldObjects.lookup('Geslacht').FieldValue)
-    edtLastNm.insert(0, sqlQuery.FieldObjects.lookup('AchterNm').FieldValue)
-    edtFirstNm.insert(0, sqlQuery.FieldObjects.lookup('VoorNm').FieldValue)
 
 
 # Treeview en Entryboxen binden

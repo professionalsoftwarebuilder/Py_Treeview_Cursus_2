@@ -159,6 +159,7 @@ class SqlQuery(TheBase):
     class QueryStatus(Enum):
         NOTSET = 1
         SET = 2
+        INSERTING = 3
         UNCHANGED = 4
         CHANGED = 5
 
@@ -168,6 +169,11 @@ class SqlQuery(TheBase):
     MSG_NODB = 'No database object given'
     MSG_NOKEYFLD = 'No key field found'
     MSG_NOTBLNM = 'No table name found'
+    MSG_RECADDED = 'New record added'
+    MSG_PLEASEENTERDATA = 'Please enter data for new record'
+
+    MSG_RECUPDATED = 'Record updated'
+
     # Maak een tuple sql keywords aan
     SQL_KEYWORDS = ('SELECT', 'FROM', 'DELETE', 'UPDATE', 'INSERT INTO', 'FROM', 'WHERE', '=', ' ')
     SQL_FRAGMENTS = ('SELECT ', 'DELETE FROM %s WHERE %s = %s ', 'UPDATE %s SET ', ' WHERE %s = %s ',
@@ -300,21 +306,31 @@ class SqlQuery(TheBase):
         # Activate Browse event
         self.on_Browse.notify_observers(None)
 
-    # Fills the list of fieldobjects with values from "recordrow" with corresponding id value
-    def fillCurrRecId(self, arecid):
+    # Positioneren omdat recid en rownr niet overeen komen (1 verschil)
+    def recIdToRecIndex(self, arecid):
         # Dit met count niet elegant, iets beters voor verzinnen
-        # Positioneren omdat recid en rownr niet overeen komen (1 verschil)
         count = 0
         for rec in self.theRecords:
             if int(rec[0]) == arecid:
                 break
             count += 1
 
+        return count
+
+
+    def recIndexToRecId(self, arecindex):
+        # Assuming index is first field of record (by sort of convention)
+        return self.theRecords[arecindex][0]
+
+
+    # Fills the list of fieldobjects with values from "recordrow" with corresponding id value
+    def fillCurrRecId(self, arecid):
+
         self._CurrentRecId = arecid
-        self._CurrRecLstIndex = count
+        self._CurrRecLstIndex = self.recIdToRecIndex(arecid)
         # Fill the fieldobjects (sort of (current)record)
         for i in range(self.NrOfColumns):
-            self.FieldObjects[i].FieldValue = self.theRecords[count][i]
+            self.FieldObjects[i].FieldValue = self.theRecords[self._CurrRecLstIndex][i]
         # Activate Browse event
         self.on_Browse.notify_observers(None)
 
@@ -325,6 +341,7 @@ class SqlQuery(TheBase):
             self.CurrRecLstIndex = self.NrOfRecords -1
 
         self.fillCurrRecLstIndex(self.CurrRecLstIndex)
+        return self.CurrRecLstIndex
 
 
     def prevRec(self):
@@ -333,12 +350,15 @@ class SqlQuery(TheBase):
             self.CurrRecLstIndex = 0
 
         self.fillCurrRecLstIndex(self.CurrRecLstIndex)
+        return self.CurrRecLstIndex
 
     def goToLastRec(self):
         self.CurrRecLstIndex = self.theRecords.index(self.theRecords[-1])
+        return self.CurrRecLstIndex
 
     def goToFirstRec(self):
         self.CurrRecLstIndex = 0
+        return self.CurrRecLstIndex
 
     def delRec(self, theId):
         if not self.Fault:
@@ -369,8 +389,19 @@ class SqlQuery(TheBase):
 
             self.theDataBase.Crs.execute(cmnd, dictValues)
             self.theDataBase.do_post()
-            self.do_message('Record updated')
+            self.do_message(self.MSG_RECUPDATED)
 
+    def emptyFields(self):
+        for i in range(self.NrOfColumns):
+            # Do something with fieldtype (in future)
+            self.FieldObjects[i].FieldValue = ''
+
+    def setToInsert(self):
+        self.QueryState.add(self.QueryStatus.INSERTING)
+        self.emptyFields()
+        # Activate Browse event
+        self.on_Browse.notify_observers(None)
+        self.do_message(self.MSG_PLEASEENTERDATA)
 
     def insertRec(self, dictValues):
         if not self.Fault:
@@ -410,5 +441,7 @@ class SqlQuery(TheBase):
             iid = recs[0][0]
 
             self.theDataBase.do_post()
+
+            self.do_message(self.MSG_RECADDED)
 
             return iid
