@@ -1,5 +1,7 @@
 import sys
+import components as cmp
 import sqlite3
+from enum import Enum
 
 
 class Observable:
@@ -28,6 +30,7 @@ class TheBase:
     Message = ''
     Fault = False
     on_Message = Observable()
+    objName = ''
 
     # Geeft boodschap door uit child class
     def do_message(self, amsg=''):
@@ -46,22 +49,38 @@ class TheBase:
             print("An exception occurred")
 
     # Wordt aangeroepen als er iets fout gaat in child class
-    def do_fault(self, afault=True, amsg=''):
+    def do_fault(self, amsg='', afault=True):
         self.Fault = afault
         if not (amsg == ''):
             self.do_message(amsg)
 
+    def __str__(self):
+        return self.objName
 
 
-class Field:
+class Field(TheBase):
+    class Status(Enum):
+        NOTSET = 1
+        SET = 2
+        stConnected = 3
+        UNCHANGED = 4
+        CHANGED = 5
+
     ID_IDENT = ('ID', '_ID', 'ID_', 'KEY' 'KEY_', 'PK', '_PK', 'PK_', 'ROWID', 'RECNO')
-    FieldValue = ''
 
     def __init__(self, fld_nm, is_key=False):
         # Let op: na de split functie zit de "," nog aan de veldnaam
+        #super().__init__()
         self.FieldNm = fld_nm.replace(',', '')
+        self.objName = self.FieldNm
+
         self.FieldParm = ':' + self.FieldNm
         self.isKey = is_key
+        self.isEmpty = True
+        self.isChanged = False
+        self._FieldValue = {'old_value':'', 'new_value':''}
+        # Status of the field
+        self.fldStatus = set([self.Status.NOTSET])
 
 
         # Omdat je niet op 'id' kunt zoeken (kan te makkelijk voor komen)
@@ -72,6 +91,27 @@ class Field:
             if self.FieldNm.upper().count(self.ID_IDENT[i]) > 0:
                 self.isKey = True
 
+
+    @property
+    def FieldValue(self):
+        return self._FieldValue
+
+    @FieldValue.setter
+    def FieldValue(self, aValue):
+        if (aValue != self._FieldValue):
+            if (self.Status.NOTSET in self.fldStatus):
+                # Set fieldstatus from unloaded to loaded
+                self.fldStatus.discard(self.Status.NOTSET)
+                self.fldStatus.add(self.Status.SET)
+                self.fldStatus.add(self.Status.UNCHANGED)
+            if (self.Status.SET in self.fldStatus):
+                # Set fieldstatus from unloaded to loaded
+                self.fldStatus.add(self.Status.CHANGED)
+
+            self._FieldValue = aValue
+
+            # Maybe usefull?
+            self.isEmpty = self._FieldValue == ''
 
 
 class DataBase(TheBase):
@@ -115,6 +155,16 @@ class DataBase(TheBase):
 
 
 class SqlQuery(TheBase):
+
+    class QueryStatus(Enum):
+        NOTSET = 1
+        SET = 2
+        UNCHANGED = 4
+        CHANGED = 5
+
+    on_Browse = Observable()
+
+
     MSG_NODB = 'No database object given'
     MSG_NOKEYFLD = 'No key field found'
     MSG_NOTBLNM = 'No table name found'
@@ -124,7 +174,6 @@ class SqlQuery(TheBase):
                      'INSERT INTO %s ', ') VALUES ','= %s ', 'FROM ', ' ')
 
     theDataBase = None
-    FieldObjects = []
     TableName = ''
     KeyFieldObj = None
 
@@ -138,9 +187,11 @@ class SqlQuery(TheBase):
     def __init__(self, adatabase):
         self._SelectSql = ''
         self._NrOfRecords = 0
-        self._CurrentRecNr = 0
+        self._CurrRecLstIndex = 0
         self._CurrentRecId = 1
         self.theRecords = []
+        self.FieldObjects = cmp.LookupList()
+        self.QueryState = set([self.QueryStatus.NOTSET])
 
         if not (adatabase is None):
             if type(adatabase) is str:
@@ -177,6 +228,7 @@ class SqlQuery(TheBase):
                         is_tblnm = True
                     else:
                         self.FieldObjects.append(Field(sqlLst[i]))
+                        #self.FieldObjects[sqlLst[i]] = Field(sqlLst[i])
                         # Check of de laatst toegevoegde (-1) een key is
                         if self.FieldObjects[-1].isKey:
                             self.KeyFieldObj = self.FieldObjects[-1]
@@ -195,20 +247,21 @@ class SqlQuery(TheBase):
 
 
     @property
-    def CurrentRecNr(self):
-        return self._CurrentRecNr
+    def CurrRecLstIndex(self):
+        return self._CurrRecLstIndex
 
-    @CurrentRecNr.setter
-    def CurrentRecNr(self, recno):
-        if self._CurrentRecNr != recno:
-            self.fillCurrRecNr(recno)
+    @CurrRecLstIndex.setter
+    def CurrRecLstIndex(self, recno):
+        if self._CurrRecLstIndex != recno:
+            if self.QueryStatus.SET in self.QueryState:
+                self.fillCurrRecLstIndex(recno)
 
 
     @property
     def CurrentRecId(self):
         return self._CurrentRecId
 
-    @CurrentRecNr.setter
+    @CurrentRecId.setter
     def CurrentRecId(self, recid):
         if self._CurrentRecId != recid:
             self.fillCurrRecId(recid)
@@ -227,20 +280,27 @@ class SqlQuery(TheBase):
                 self.NrOfColumns = len(self.theRecords[0])
                 # Put first rec in currrec
                 self.CurrentRecNr = 0
-                self.fillCurrRecNr(0)
+                self.fillCurrRecLstIndex(0)
 
             self.theDataBase.do_close()
+            # Put status right
+            self.QueryState.discard(self.QueryStatus.NOTSET)
+            self.QueryState.add(self.QueryStatus.SET)
             self.do_message('Data refreshed')
 
 
-    def fillCurrRecNr(self, arecnr):
+    # Fills the list of fieldobjects with values from selected "recordrow"
+    def fillCurrRecLstIndex(self, arecnr):
 
-        self._CurrentRecNr = arecnr
+        self._CurrRecLstIndex = arecnr
         self._CurrentRecId = self.theRecords[arecnr][0]
+        # Fill the fieldobjects (sort of (current)record)
         for i in range(self.NrOfColumns):
             self.FieldObjects[i].FieldValue = self.theRecords[arecnr][i]
+        # Activate Browse event
+        self.on_Browse.notify_observers(None)
 
-
+    # Fills the list of fieldobjects with values from "recordrow" with corresponding id value
     def fillCurrRecId(self, arecid):
         # Dit met count niet elegant, iets beters voor verzinnen
         # Positioneren omdat recid en rownr niet overeen komen (1 verschil)
@@ -251,27 +311,34 @@ class SqlQuery(TheBase):
             count += 1
 
         self._CurrentRecId = arecid
-        self._CurrentRecNr = count
-
+        self._CurrRecLstIndex = count
+        # Fill the fieldobjects (sort of (current)record)
         for i in range(self.NrOfColumns):
             self.FieldObjects[i].FieldValue = self.theRecords[count][i]
+        # Activate Browse event
+        self.on_Browse.notify_observers(None)
 
 
     def nextRec(self):
-        self.CurrentRecNr += 1
-        if self.CurrentRecNr >= self.NrOfRecords:
-            self.CurrentRecNr = self.NrOfRecords -1
+        self.CurrRecLstIndex += 1
+        if self.CurrRecLstIndex >= self.NrOfRecords:
+            self.CurrRecLstIndex = self.NrOfRecords -1
 
-        self.fillCurrRec(self.CurrentRecNr)
+        self.fillCurrRecLstIndex(self.CurrRecLstIndex)
 
 
     def prevRec(self):
-        self.CurrentRecNr -= 1
-        if self.CurrentRecNr < 0:
-            self.CurrentRecNr = 0
+        self.CurrRecLstIndex -= 1
+        if self.CurrRecLstIndex < 0:
+            self.CurrRecLstIndex = 0
 
-        self.fillCurrRec(self.CurrentRecNr)
+        self.fillCurrRecLstIndex(self.CurrRecLstIndex)
 
+    def goToLastRec(self):
+        self.CurrRecLstIndex = self.theRecords.index(self.theRecords[-1])
+
+    def goToFirstRec(self):
+        self.CurrRecLstIndex = 0
 
     def delRec(self, theId):
         if not self.Fault:

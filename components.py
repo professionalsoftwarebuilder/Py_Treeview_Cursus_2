@@ -1,4 +1,5 @@
 import tkinter as tk
+import sqlQuery as sql
 
 
 # A Statusbar
@@ -18,3 +19,36 @@ class StatusBar(tk.Frame):
 
     def clear(self):
         self.variable.set('')
+
+
+# Lijst die maakt dat in lijst namen gebruikt kunnen worden ipv indices
+class LookupList(list):
+    def lookup(self, aString):
+        found = False
+        for item in self:
+            if item.objName:
+                if item.objName == aString:
+                    found = True
+                    return item
+        if not found:
+            return None
+
+class dbEdit(tk.Entry):
+
+
+    def __init__(self, aQuery, aFieldNm, master=None, cnf={}, **kw ):
+        super().__init__(master, cnf, **kw)
+        self.theQuery = aQuery
+        self.do_Update = sql.Observer(self.theQuery.on_Browse, self.reFreshEntry)
+        self.fieldName = aFieldNm
+        self.reFreshEntry()
+
+
+    def clearEntry(self):
+        self.delete(0, tk.END)
+
+    # Dummy parameter to satisfy Observer (not elegant)
+    def reFreshEntry(self, dummy=None):
+        if self.theQuery.QueryStatus.SET in self.theQuery.QueryState:
+            self.clearEntry()
+            self.insert(0, self.theQuery.FieldObjects.lookup(self.fieldName).FieldValue)

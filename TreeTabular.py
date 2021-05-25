@@ -1,16 +1,33 @@
 import tkinter as tk
 from tkinter import ttk
 import sqlQuery as sql
-import components
+import components as cmp
 import sqlite3
 
 SQL_SELECT_ALL = 'select rowid, VoorNm, AchterNm, Geslacht from klanten'
+# Create table
+SQL_KLANTENTABLE = '''
+            CREATE TABLE if not exists klanten (
+            VoorNm TEXT, 
+            AchterNm TEXT,
+            Geslacht TEXT
+            )
+        '''
 DATABASENAME = 'mijnDb.db'
 
-theDataBase = sql.DataBase(DATABASENAME)
 
-sqlQuery = sql.SqlQuery(theDataBase)
-sqlQuery.SelectSql = SQL_SELECT_ALL
+sqlQuery = None
+
+def setupApp():
+
+    theDataBase = sql.DataBase(DATABASENAME, SQL_KLANTENTABLE)
+
+    global sqlQuery
+    sqlQuery = sql.SqlQuery(theDataBase)
+    sqlQuery.SelectSql = SQL_SELECT_ALL
+
+
+setupApp()
 
 
 # Haal records op uit database
@@ -159,17 +176,12 @@ edtLastNm.grid(row=0, column=3, padx=10, pady=10)
 
 lblGeslacht = tk.Label(data_frame, text='Geslacht:')
 lblGeslacht.grid(row=1, column=0, padx=10, pady=10)
-edtGeslacht = tk.Entry(data_frame)
+edtGeslacht = cmp.dbEdit(sqlQuery, 'Geslacht', data_frame)
 edtGeslacht.grid(row=1, column=1, padx=10, pady=10)
 
 
 def goToFirstRec():
-    rowcount = len(tree.get_children())
-    if rowcount > 0:
-        rowIid = tree.get_children()[0]
-        tree.focus(rowIid)
-        tree.selection_set(rowIid)
-        selectRec()
+    sqlQuery.goToFirstRec()
 
 
 btnFirstRow = tk.Button(top_frame, text='First', command=goToFirstRec)
@@ -177,12 +189,7 @@ btnFirstRow.pack(side=tk.LEFT)
 
 
 def goToLastRec():
-    rowcount = len(tree.get_children())
-    if rowcount > 0:
-        rowIid = tree.get_children()[-1]
-        tree.focus(rowIid)
-        tree.selection_set(rowIid)
-        selectRec()
+    sqlQuery.goToLastRec()
 
 
 btnLastRow = tk.Button(top_frame, text='Last', command=goToLastRec)
@@ -240,6 +247,8 @@ btnWisEen = tk.Button(top_frame, text='Delete', command=wisGeselecteerde)
 btnWisEen.pack(side=tk.LEFT)
 
 
+
+
 # Record wijzigen
 def selecteerRec(e):
     selectRec()
@@ -257,9 +266,9 @@ def selectRec():
 
     values = tree.item(selected, 'values')
 
-    edtGeslacht.insert(0, sqlQuery.FieldObjects[3].FieldValue)
-    edtLastNm.insert(0, sqlQuery.FieldObjects[2].FieldValue)
-    edtFirstNm.insert(0, sqlQuery.FieldObjects[1].FieldValue)
+    #edtGeslacht.insert(0, sqlQuery.FieldObjects.lookup('Geslacht').FieldValue)
+    edtLastNm.insert(0, sqlQuery.FieldObjects.lookup('AchterNm').FieldValue)
+    edtFirstNm.insert(0, sqlQuery.FieldObjects.lookup('VoorNm').FieldValue)
 
 
 # Treeview en Entryboxen binden
@@ -287,7 +296,7 @@ def updateRec():
 btnUpdateRec = tk.Button(top_frame, text='Update', command=updateRec)
 btnUpdateRec.pack(side=tk.LEFT)
 
-stBrMessages = components.StatusBar(root)
+stBrMessages = cmp.StatusBar(root)
 
 
 def setStatusBarText(aText):
@@ -296,33 +305,11 @@ def setStatusBarText(aText):
 on_Message = sql.Observer(sqlQuery.on_Message, setStatusBarText)
 
 
-def setupApp():
-    # Connect to database (or create it)
-    conn = sqlite3.connect(DATABASENAME)
-
-    # Create a cursor instance
-    curs = conn.cursor()
-
-    # Create table
-    curs.execute('''
-        CREATE TABLE if not exists klanten (
-        VoorNm TEXT, 
-        AchterNm TEXT,
-        Geslacht TEXT
-        )
-    ''')
-
-    # Commit changes
-    conn.commit()
-
-    # Close connection
-    conn.close()
-
+def initApp():
     reccount = fillTree()
     goToFirstRec()
 
-setupApp()
 
-
+initApp()
 
 root.mainloop()
